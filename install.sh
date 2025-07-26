@@ -91,17 +91,42 @@ initialize_config
 initialize_i18n
 initialize_history_and_favorites
 
+# Function to detect project from current directory on startup
+detect_project_on_startup() {
+    log_debug "Attempting to detect project from current directory: $(pwd)"
+    local initial_dir="$(pwd)"
+
+    # Check if current directory is a Git repo or contains composer.json/index.php
+    if [[ -d "${initial_dir}/.git" || -f "${initial_dir}/composer.json" || ( -f "${initial_dir}/index.php" && -d "${initial_dir}/core" ) ]]; then
+        CURRENT_PROJECT_PATH="${initial_dir}"
+        log_info "Detected project at: ${CURRENT_PROJECT_PATH}"
+        # Try to detect Drupal root within this project
+        (cd "$CURRENT_PROJECT_PATH" && detect_drupal_root "$CURRENT_PROJECT_PATH")
+        if [[ -n "$DRUPAL_ROOT" ]]; then
+            log_success "$(printf "$(_ "MSG_PROJECT_DRUPAL_ROOT_FOUND")" "${DRUPAL_ROOT}") (Auto-detected)"
+        else
+            log_warn "$(_ "MSG_PROJECT_DRUPAL_ROOT_NOT_FOUND") (Auto-detection failed for current project)"
+        fi
+        # Add to history if a new project path is detected this way
+        record_history "Auto-detected Project: $(basename "$CURRENT_PROJECT_PATH")" "cd ${CURRENT_PROJECT_PATH}"
+    else
+        log_debug "Current directory is not recognized as a project root."
+        CURRENT_PROJECT_PATH="" # Ensure it's clear if no project is detected
+        DRUPAL_ROOT=""
+    fi
+}
+
 # Display header
 display_header() {
     clear
     echo "----------------------------------------------------"
-    echo "                 DevxTools 1.0                      "
+    echo "            DevxTools 1.0                         "
     echo "----------------------------------------------------"
     echo ""
 }
 
-# Call the main menu
-display_header
+# Call initial detection and then main menu
+detect_project_on_startup
 main_menu
 EOF
 chmod +x "${BIN_DIR}/aub-tools"
